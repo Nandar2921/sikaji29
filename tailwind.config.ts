@@ -12,8 +12,12 @@ const config: Config = {
       fontFamily: {
         arabic: ['Amiri', 'Scheherazade New', 'serif'],
       },
-      backgroundColor: {
-        'card': 'var(--bg-card)',
+      colors: {
+        dark: {
+          bg: '#1a1a2e',
+          card: '#16213e',
+          text: '#e2e8f0',
+        },
       },
     },
   },
