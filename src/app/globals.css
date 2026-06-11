@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Dark mode styles untuk semua elemen */
+  html.dark {
+    color-scheme: dark;
+  }
+  
+  body {
+    @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200;
+  }
+  
+  /* Card, container, border */
+  .card, .border-default {
+    @apply bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700;
+  }
+  
+  /* Input fields */
+  input, textarea, select {
+    @apply bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 
+           text-gray-900 dark:text-gray-100;
+  }
+  
+  /* Links */
+  a {
+    @apply text-emerald-600 dark:text-emerald-400;
+  }
+  
+  /* Tables */
+  table {
+    @apply bg-white dark:bg-gray-800;
+  }
+  
+  th, td {
+    @apply border-gray-200 dark:border-gray-700;
+  }
+  
+  /* Skeleton loading */
+  .animate-pulse {
+    @apply bg-gray-200 dark:bg-gray-700;
+  }
+}
+
+@layer components {
+  .font-arabic {
+    font-family: 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+    line-height: 1.8;
+  }
+  
+  /* Card component */
+  .card-hover {
+    @apply hover:shadow-lg transition-shadow bg-white dark:bg-gray-800 
+           border border-gray-100 dark:border-gray-700;
+  }
+}
