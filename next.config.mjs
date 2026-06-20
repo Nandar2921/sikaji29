@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer, webpack }) => {
-    // Abaikan file .node di client-side
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -19,25 +18,25 @@ const nextConfig = {
         "onnxruntime-node": false,
       };
     }
-    
-    // Tambahkan rule untuk file .node (abaikan)
+
     config.module.rules.push({
       test: /\.node$/,
       use: 'null-loader',
     });
-    
-    // Ignore onnxruntime-node completely
+
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^onnxruntime-node$/,
       })
     );
-    
+
     return config;
   },
-  // Agar tidak error saat build
-  serverExternalPackages: ['onnxruntime-node', '@xenova/transformers'],
-  // Transpile packages yang perlu
+  // FIX: serverExternalPackages hanya ada di Next.js 15+
+  // Next.js 14 pakai experimental.serverComponentsExternalPackages
+  experimental: {
+    serverComponentsExternalPackages: ['onnxruntime-node', '@xenova/transformers'],
+  },
   transpilePackages: ['@xenova/transformers'],
 };
 
