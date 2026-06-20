@@ -18,22 +18,17 @@ const nextConfig = {
         "onnxruntime-node": false,
       };
     }
-
     config.module.rules.push({
       test: /\.node$/,
       use: 'null-loader',
     });
-
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^onnxruntime-node$/,
       })
     );
-
     return config;
   },
-  // FIX: serverExternalPackages hanya ada di Next.js 15+
-  // Next.js 14 pakai experimental.serverComponentsExternalPackages
   experimental: {
     serverComponentsExternalPackages: ['onnxruntime-node', '@xenova/transformers'],
   },
