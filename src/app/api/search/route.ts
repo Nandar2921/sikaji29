@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { quranVerses } from '@/lib/db/schema';
-import { ilike, or, eq, sql } from 'drizzle-orm';
+import { ilike, or, eq, sql, and } from 'drizzle-orm';
 
 // Daftar nama surah lengkap (1-114)
 const surahNamesList: Record<number, { latin: string; arabic: string; meaning: string }> = {
@@ -121,6 +121,31 @@ const surahNamesList: Record<number, { latin: string; arabic: string; meaning: s
   114: { latin: 'An-Nas', arabic: 'الناس', meaning: 'Manusia' },
 };
 
+// Sinonim untuk Quran search
+const quranSynonyms: Record<string, string[]> = {
+  'shalat': ['solat', 'sembahyang', 'salat', 'sholat'],
+  'puasa': ['shaum', 'ramadhan'],
+  'zakat': ['sedekah wajib', 'infaq', 'fitrah'],
+  'haji': ['umrah', 'ibadah haji'],
+  'sabar': ['tabah', 'tahan'],
+  'syukur': ['bersyukur', 'terima kasih'],
+  'tobat': ['taubat', 'bertobat'],
+  'doa': ['berdoa', 'memohon'],
+  'nikah': ['pernikahan', 'menikah', 'kawin'],
+  'thalak': ['cerai', 'perceraian'],
+  'waris': ['warisan', 'pusaka'],
+  'wudhu': ['wudu', 'berwudhu'],
+  'mandi': ['junub', 'mandi wajib'],
+  'iman': ['percaya', 'keyakinan'],
+  'islam': ['muslim', 'berserah diri'],
+  'taqwa': ['takwa', 'bertaqwa'],
+  'qurban': ['udhiyah', 'aqiqah', 'kurban'],
+  'riba': ['bunga', 'rentenir'],
+  'jihad': ['perjuangan', 'berjuang'],
+  'sedekah': ['shadaqah', 'sodaqoh', 'infaq'],
+  'rezeki': ['rizki', 'rejeki', 'rizq'],
+};
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   let q = searchParams.get('q') || '';
@@ -137,10 +162,9 @@ export async function GET(req: NextRequest) {
     let isSurahSearch = false;
     let matchedSurah = null;
     
-    // Auto-detect: cek apakah keyword adalah nama surah
     const normalizedQ = q.toLowerCase();
     
-    // Cek dengan nama latin
+    // Auto-detect: cek apakah keyword adalah nama surah
     for (let i = 1; i <= 114; i++) {
       const surahName = surahNamesList[i]?.latin.toLowerCase();
       if (surahName && (normalizedQ === surahName || normalizedQ.includes(surahName))) {
@@ -157,11 +181,29 @@ export async function GET(req: NextRequest) {
       isSurahSearch = true;
       matchedSurah = parseInt(patternMatch[2]);
     }
+
+    // Cek pola "1:5"
+    const ayatPattern = q.match(/^(\d+):(\d+)$/);
+    if (ayatPattern) {
+      isSurahSearch = true;
+      matchedSurah = parseInt(ayatPattern[1]);
+    }
     
     let total = 0;
     let results = [];
     let surahInfo = null;
     
+    // ========== EXPAND QUERY DENGAN SINONIM ==========
+    const words = q.toLowerCase().split(' ');
+    const expandedQueries = [q];
+    for (const word of words) {
+      if (quranSynonyms[word]) {
+        expandedQueries.push(...quranSynonyms[word]);
+      }
+    }
+    const uniqueTerms = [...new Set(expandedQueries)];
+    const searchPatterns = uniqueTerms.map(t => `%${t}%`);
+
     if (isSurahSearch && matchedSurah && matchedSurah >= 1 && matchedSurah <= 114) {
       const info = surahNamesList[matchedSurah];
       surahInfo = {
@@ -187,24 +229,31 @@ export async function GET(req: NextRequest) {
         .orderBy(quranVerses.ayah);
         
     } else {
-      const conditions = or(
-        ilike(quranVerses.translation, `%${q}%`),
-        ilike(quranVerses.arabic, `%${q}%`)
-      );
-      
-      const totalResult = await db.select({ count: sql<number>`count(*)` })
-        .from(quranVerses)
-        .where(conditions);
-      
-      total = Number(totalResult[0]?.count) || 0;
-      
-      results = await db
-        .select()
-        .from(quranVerses)
-        .where(conditions)
-        .limit(limit)
-        .offset(offset)
-        .orderBy(quranVerses.surah, quranVerses.ayah);
+      // ========== SEARCH DENGAN SINONIM ==========
+      const conditions = uniqueTerms.map((_, i) =>
+        `(translation ILIKE $${i + 1} OR arabic ILIKE $${i + 1})`
+      ).join(' OR ');
+
+      // Count total
+      const countQuery = await db.execute(sql`
+        SELECT COUNT(*) as total
+        FROM quran_verses
+        WHERE ${sql.raw(conditions)}
+      `);
+      total = Number(countQuery.rows[0]?.total) || 0;
+
+      // Get results
+      const resultsQuery = await db.execute(sql`
+        SELECT 
+          id, surah, ayah, arabic, translation,
+          CONCAT('QS. ', surah, ':', ayah) as reference
+        FROM quran_verses
+        WHERE ${sql.raw(conditions)}
+        ORDER BY surah, ayah
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `);
+      results = resultsQuery.rows;
     }
     
     const totalPages = Math.ceil(total / limit);
@@ -215,6 +264,7 @@ export async function GET(req: NextRequest) {
       page,
       totalPages,
       keyword: q,
+      expandedQueries: uniqueTerms.length > 1 ? uniqueTerms : undefined,
       isSurahSearch: isSurahSearch && !!matchedSurah,
       matchedSurah: matchedSurah,
       surahInfo: surahInfo
